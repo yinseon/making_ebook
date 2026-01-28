@@ -1,1 +1,387 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>공통수학 교재</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
+        body {
+            font-family: 'Malgun Gothic', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .viewer-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 1200px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .controls {
+            background: #2d3748;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        button {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        button:hover:not(:disabled) {
+            background: #3182ce;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #718096;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .page-info {
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 16px;
+            border-radius: 6px;
+        }
+
+        .zoom-info {
+            color: white;
+            font-weight: 600;
+            min-width: 60px;
+            text-align: center;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+
+        .pdf-container {
+            background: #f7fafc;
+            height: 80vh;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 30px;
+            position: relative;
+        }
+
+        #pdf-canvas {
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border-radius: 4px;
+            background: white;
+            transition: transform 0.3s ease;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #4a5568;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .spinner {
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #4299e1;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .keyboard-hint {
+            background: rgba(66, 153, 225, 0.1);
+            color: #2d3748;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            text-align: center;
+            margin: 10px 20px;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .control-group {
+                width: 100%;
+                justify-content: center;
+            }
+
+            button {
+                flex: 1;
+            }
+
+            .pdf-container {
+                padding: 15px;
+                height: 70vh;
+            }
+
+            .keyboard-hint {
+                display: none;
+            }
+        }
+
+        /* Fullscreen button */
+        .fullscreen-btn {
+            background: #48bb78;
+        }
+
+        .fullscreen-btn:hover {
+            background: #38a169;
+        }
+    </style>
+</head>
+<body>
+    <div class="viewer-container">
+        <div class="controls">
+            <div class="control-group">
+                <button id="prev-btn" onclick="previousPage()">
+                    ◀ 이전
+                </button>
+                <span class="page-info">
+                    <span id="current-page">1</span> / <span id="total-pages">-</span>
+                </span>
+                <button id="next-btn" onclick="nextPage()">
+                    다음 ▶
+                </button>
+            </div>
+
+            <div class="control-group">
+                <button onclick="zoomOut()">축소 −</button>
+                <span class="zoom-info" id="zoom-level">100%</span>
+                <button onclick="zoomIn()">확대 +</button>
+                <button onclick="resetZoom()">원본</button>
+            </div>
+
+            <div class="control-group">
+                <button class="fullscreen-btn" onclick="toggleFullscreen()">
+                    전체화면
+                </button>
+            </div>
+        </div>
+
+        <div class="keyboard-hint">
+            💡 키보드 단축키: ← → (페이지), + − (확대/축소), 0 (원본), F (전체화면)
+        </div>
+
+        <div class="pdf-container" id="pdf-container">
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                PDF 불러오는 중...
+            </div>
+            <canvas id="pdf-canvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // PDF.js 워커 설정
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let pdfDoc = null;
+        let currentPage = 1;
+        let totalPages = 0;
+        let scale = 1.5; // 기본 배율
+        let rendering = false;
+
+        // PDF 파일 로드
+        const loadPDF = async () => {
+            try {
+                const loadingTask = pdfjsLib.getDocument('공통수학_미리보기.pdf');
+                pdfDoc = await loadingTask.promise;
+                totalPages = pdfDoc.numPages;
+                
+                document.getElementById('total-pages').textContent = totalPages;
+                document.getElementById('loading').style.display = 'none';
+                
+                renderPage(currentPage);
+            } catch (error) {
+                console.error('PDF 로드 오류:', error);
+                document.getElementById('loading').innerHTML = 
+                    '<div style="color: #e53e3e;">PDF 파일을 불러올 수 없습니다.<br>파일 경로를 확인해주세요.</div>';
+            }
+        };
+
+        // 페이지 렌더링
+        const renderPage = async (pageNum) => {
+            if (rendering) return;
+            rendering = true;
+
+            try {
+                const page = await pdfDoc.getPage(pageNum);
+                const canvas = document.getElementById('pdf-canvas');
+                const ctx = canvas.getContext('2d');
+                
+                const viewport = page.getViewport({ scale: scale });
+                
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+
+                await page.render(renderContext).promise;
+                
+                currentPage = pageNum;
+                updatePageDisplay();
+                
+                // 스크롤을 맨 위로
+                document.getElementById('pdf-container').scrollTop = 0;
+                
+            } catch (error) {
+                console.error('페이지 렌더링 오류:', error);
+            } finally {
+                rendering = false;
+            }
+        };
+
+        // 페이지 표시 업데이트
+        const updatePageDisplay = () => {
+            document.getElementById('current-page').textContent = currentPage;
+            document.getElementById('prev-btn').disabled = currentPage <= 1;
+            document.getElementById('next-btn').disabled = currentPage >= totalPages;
+        };
+
+        // 다음 페이지
+        const nextPage = () => {
+            if (currentPage < totalPages) {
+                renderPage(currentPage + 1);
+            }
+        };
+
+        // 이전 페이지
+        const previousPage = () => {
+            if (currentPage > 1) {
+                renderPage(currentPage - 1);
+            }
+        };
+
+        // 확대
+        const zoomIn = () => {
+            if (scale < 3.0) {
+                scale += 0.2;
+                renderPage(currentPage);
+                updateZoomDisplay();
+            }
+        };
+
+        // 축소
+        const zoomOut = () => {
+            if (scale > 0.5) {
+                scale -= 0.2;
+                renderPage(currentPage);
+                updateZoomDisplay();
+            }
+        };
+
+        // 원본 크기
+        const resetZoom = () => {
+            scale = 1.5;
+            renderPage(currentPage);
+            updateZoomDisplay();
+        };
+
+        // 줌 레벨 표시 업데이트
+        const updateZoomDisplay = () => {
+            const percentage = Math.round((scale / 1.5) * 100);
+            document.getElementById('zoom-level').textContent = percentage + '%';
+        };
+
+        // 전체화면
+        const toggleFullscreen = () => {
+            const container = document.querySelector('.viewer-container');
+            if (!document.fullscreenElement) {
+                container.requestFullscreen().catch(err => {
+                    console.error('전체화면 오류:', err);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        };
+
+        // 키보드 단축키
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowLeft':
+                    previousPage();
+                    break;
+                case 'ArrowRight':
+                    nextPage();
+                    break;
+                case '+':
+                case '=':
+                    zoomIn();
+                    break;
+                case '-':
+                    zoomOut();
+                    break;
+                case '0':
+                    resetZoom();
+                    break;
+                case 'f':
+                case 'F':
+                    toggleFullscreen();
+                    break;
+            }
+        });
+
+        // PDF 로드 시작
+        loadPDF();
+    </script>
+</body>
+</html>
